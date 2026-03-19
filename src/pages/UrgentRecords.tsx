@@ -131,13 +131,13 @@ export default function UrgentRecords() {
         }
     };
 
-    // Resets urgency, deadline, and days left back to default (unset)
+    // Erases urgency, deadline (and days left is derived) back to blank
     const handleResetToDefault = async (record: Procurement) => {
         setSaving(true);
         try {
             await updateProcurement(record.id, {
-                urgencyLevel: undefined,
-                deadline: undefined,
+                urgencyLevel: null as any,
+                deadline: null as any,
                 editedBy: user?.id,
                 editedByName: user?.name,
                 lastEditedAt: new Date().toISOString(),
