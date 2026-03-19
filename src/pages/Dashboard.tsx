@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
     Select,
     SelectContent,
@@ -24,20 +25,20 @@ import {
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LabelList } from 'recharts';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { differenceInCalendarDays, format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [procurements, setProcurements] = useState<Procurement[]>([]);
-    const [cabinets, setCabinets] = useState<Cabinet[]>([]); // Shelves (Tier 1)
-    const [shelves, setShelves] = useState<Shelf[]>([]); // Cabinets (Tier 2)
-    const [folders, setFolders] = useState<Folder[]>([]); // Folders (Tier 3)
-    const [boxes, setBoxes] = useState<Box[]>([]); // Boxes
+    const [cabinets, setCabinets] = useState<Cabinet[]>([]);
+    const [shelves, setShelves] = useState<Shelf[]>([]);
+    const [folders, setFolders] = useState<Folder[]>([]);
+    const [boxes, setBoxes] = useState<Box[]>([]);
     const [isInitializing, setIsInitializing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
 
-    // Year Filter State
     const [selectedYear, setSelectedYear] = useState<string>('all');
 
     useEffect(() => {
@@ -56,25 +57,18 @@ const Dashboard: React.FC = () => {
         };
     }, []);
 
-    // Helper: extract 4-digit year from any PR number format
     const extractPrYear = (prNumber: string): string | null => {
-        // New format: YYYY-MMM-SEQ (e.g. 2025-JAN-001)
         const newMatch = prNumber.match(/^(\d{4})-/);
         if (newMatch) return newMatch[1];
-        // Old format: DIV-MMM-YY-SEQ (e.g. GSSO-JAN-25-001)
         const oldMatch = prNumber.match(/^[A-Za-z]+-[A-Za-z]+-([0-9]{2,4})-/);
         if (oldMatch) {
             const yr = oldMatch[1];
-            if (yr.length === 2) {
-                // 2-digit year: assume 2000+
-                return (2000 + parseInt(yr)).toString();
-            }
-            return yr; // already 4 digits
+            if (yr.length === 2) return (2000 + parseInt(yr)).toString();
+            return yr;
         }
         return null;
     };
 
-    // Compute Available Years
     const availableYears = useMemo(() => {
         const years = new Set<string>();
         procurements.forEach(p => {
@@ -82,124 +76,73 @@ const Dashboard: React.FC = () => {
             if (yr) {
                 years.add(yr);
             } else if (p.createdAt) {
-                try {
-                    years.add(new Date(p.createdAt).getFullYear().toString());
-                } catch (e) { }
+                try { years.add(new Date(p.createdAt).getFullYear().toString()); } catch (e) { }
             }
         });
         return Array.from(years).sort().reverse();
     }, [procurements]);
 
-    // Handle default year selection if 'all' but data exists (optional, keeping 'all' as default)
-
-    // Filter Procurements
     const filteredProcurements = useMemo(() => {
         if (selectedYear === 'all') return procurements;
         return procurements.filter(p => {
             const yr = extractPrYear(p.prNumber);
             if (yr) return yr === selectedYear;
-            if (p.createdAt) {
-                return new Date(p.createdAt).getFullYear().toString() === selectedYear;
-            }
+            if (p.createdAt) return new Date(p.createdAt).getFullYear().toString() === selectedYear;
             return false;
         });
     }, [selectedYear, procurements]);
 
-    const metrics = useMemo(() => {
-        return {
-            totalRecords: filteredProcurements.length,
-            active: filteredProcurements.filter(p => p.status === 'active').length,
-            archived: filteredProcurements.filter(p => p.status === 'archived').length,
-            svp: filteredProcurements.filter(p => p.procurementType === 'SVP').length,
-            regular: filteredProcurements.filter(p => p.procurementType === 'Regular Bidding').length,
-            totalDrawers: cabinets.length, // Structural counts remain total
-            totalCabinets: shelves.length,
-            totalFolders: folders.length,
-            totalBoxes: boxes.length,
-        }
-    }, [filteredProcurements, cabinets, shelves, folders, boxes]);
+    const metrics = useMemo(() => ({
+        totalRecords: filteredProcurements.length,
+        active: filteredProcurements.filter(p => p.status === 'active').length,
+        archived: filteredProcurements.filter(p => p.status === 'archived').length,
+        svp: filteredProcurements.filter(p => p.procurementType === 'SVP').length,
+        regular: filteredProcurements.filter(p => p.procurementType === 'Regular Bidding').length,
+        totalDrawers: cabinets.length,
+        totalCabinets: shelves.length,
+        totalFolders: folders.length,
+        totalBoxes: boxes.length,
+    }), [filteredProcurements, cabinets, shelves, folders, boxes]);
 
-    // Storage Stats (Mixed Drawers and Boxes)
     const storageStats = useMemo(() => {
-        // 1. Drawers (Tier 1)
         const drawerData = cabinets.map(c => ({
-            id: c.id,
-            name: c.code,
-            type: 'Drawer',
+            id: c.id, name: c.code, type: 'Drawer',
             count: filteredProcurements.filter(p => p.cabinetId === c.id).length
         }));
-
-        // 2. Boxes
         const boxData = boxes.map(b => ({
-            id: b.id,
-            name: b.name, // Use name for Boxes as it might be clearer than just code
-            type: 'Box',
+            id: b.id, name: b.name, type: 'Box',
             count: filteredProcurements.filter(p => p.boxId === b.id).length
         }));
-
-        // Combine and Sort
-        return [...drawerData, ...boxData]
-            .filter(s => s.count > 0)
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 7); // Top 7 for better fit
+        return [...drawerData, ...boxData].filter(s => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 7);
     }, [cabinets, boxes, filteredProcurements]);
 
-    // Calculate detailed hierarchy data (Drawers AND Boxes)
     const hierarchyData = useMemo(() => {
-        // Drawer Hierarchy
         const drawerH = cabinets.map(drawer => {
-            // Tier 2: Cabinets in this Tier 1 Drawer
             const validCabinets = shelves.filter(c => c.cabinetId === drawer.id);
-            // Tier 3: Boxes in these Tier 2 Cabinets
             const validBoxes = boxes.filter(b => validCabinets.some(c => c.id === b.shelfId));
-
-            // Tier 4: Folders
             const directFolders = folders.filter(f => validCabinets.some(c => c.id === f.shelfId) && !f.boxId);
             const boxFolders = folders.filter(f => validBoxes.some(b => b.id === f.boxId));
-            const totalFolders = directFolders.length + boxFolders.length;
-
-            // Tier 5: Files (Filtered by Year)
             const validFiles = filteredProcurements.filter(p => p.cabinetId === drawer.id);
-
             return {
-                name: drawer.code,
-                Drawers: 1,
-                Cabinets: validCabinets.length,
-                Folders: totalFolders,
-                Files: validFiles.length,
-                Boxes: validBoxes.length,
-                type: 'drawer',
-                rawFiles: validFiles.length // for sorting
+                name: drawer.code, Drawers: 1, Cabinets: validCabinets.length,
+                Folders: directFolders.length + boxFolders.length, Files: validFiles.length,
+                Boxes: validBoxes.length, type: 'drawer', rawFiles: validFiles.length
             };
         });
-
-        // Box Hierarchy (Standalone view for Box hotspots)
         const boxH = boxes.map(box => {
             const boxFolders = folders.filter(f => f.boxId === box.id);
             const boxFiles = filteredProcurements.filter(p => p.boxId === box.id);
-
             return {
-                name: box.name,
-                Drawers: 0,
-                Cabinets: undefined, // Hide from chart
-                Boxes: 1, // It is a box
-                Folders: boxFolders.length,
-                Files: boxFiles.length,
-                type: 'box',
-                rawFiles: boxFiles.length
+                name: box.name, Drawers: 0, Cabinets: undefined, Boxes: 1,
+                Folders: boxFolders.length, Files: boxFiles.length, type: 'box', rawFiles: boxFiles.length
             };
         });
-
-        // Combine and take top 10 by Files
-        return [...drawerH, ...boxH]
-            .filter(item => item.rawFiles > 0) // Only showing active storages for this year
-            .sort((a, b) => b.rawFiles - a.rawFiles)
-            .slice(0, 10);
+        return [...drawerH, ...boxH].filter(item => item.rawFiles > 0).sort((a, b) => b.rawFiles - a.rawFiles).slice(0, 10);
     }, [cabinets, shelves, folders, filteredProcurements, boxes]);
 
     const typeData = [
-        { name: 'SVP', value: metrics.svp, fill: '#3b82f6' }, // Blue
-        { name: 'Regular', value: metrics.regular, fill: '#a855f7' }, // Purple
+        { name: 'SVP', value: metrics.svp, fill: '#3b82f6' },
+        { name: 'Regular', value: metrics.regular, fill: '#a855f7' },
     ].filter(d => d.value > 0);
 
     const statusData = [
@@ -207,10 +150,27 @@ const Dashboard: React.FC = () => {
         { name: 'Archived', value: metrics.archived, fill: '#10b981' },
     ].filter(d => d.value > 0);
 
-    // Recent 5 activities (Filtered)
     const recentProcurements = [...(filteredProcurements || [])]
         .sort((a, b) => new Date(b.createdAt || b.dateAdded || new Date()).getTime() - new Date(a.createdAt || a.dateAdded || new Date()).getTime())
         .slice(0, 5);
+
+    // Top 5 Critical & High urgency records (not Done), sorted Critical first then by nearest deadline
+    const urgentRecords = useMemo(() => {
+        return filteredProcurements
+            .filter(p => p.urgencyLevel === 'Critical' || p.urgencyLevel === 'High')
+            .sort((a, b) => {
+                // Critical before High
+                if (a.urgencyLevel !== b.urgencyLevel) {
+                    return a.urgencyLevel === 'Critical' ? -1 : 1;
+                }
+                // Then nearest deadline first (no deadline goes last)
+                if (a.deadline && b.deadline) return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+                if (a.deadline) return -1;
+                if (b.deadline) return 1;
+                return 0;
+            })
+            .slice(0, 5);
+    }, [filteredProcurements]);
 
     const progressData = [
         { name: 'Completed', value: filteredProcurements.filter(p => p.procurementStatus === 'Completed').length, fill: '#10b981' },
@@ -222,14 +182,12 @@ const Dashboard: React.FC = () => {
     ].filter(d => d.value > 0);
 
     const urgencyData = [
-        { name: 'Low', value: filteredProcurements.filter(p => p.urgencyLevel === 'Low').length, fill: '#3b82f6' }, // Blue
-        { name: 'Medium', value: filteredProcurements.filter(p => p.urgencyLevel === 'Medium').length, fill: '#f59e0b' }, // Amber
-        { name: 'High', value: filteredProcurements.filter(p => p.urgencyLevel === 'High').length, fill: '#ef4444' }, // Red
-        { name: 'Critical', value: filteredProcurements.filter(p => p.urgencyLevel === 'Critical').length, fill: '#b91c1c' }, // Dark Red
+        { name: 'Low', value: filteredProcurements.filter(p => p.urgencyLevel === 'Low').length, fill: '#3b82f6' },
+        { name: 'Medium', value: filteredProcurements.filter(p => p.urgencyLevel === 'Medium').length, fill: '#f59e0b' },
+        { name: 'High', value: filteredProcurements.filter(p => p.urgencyLevel === 'High').length, fill: '#ef4444' },
+        { name: 'Critical', value: filteredProcurements.filter(p => p.urgencyLevel === 'Critical').length, fill: '#b91c1c' },
     ].filter(d => d.value > 0);
 
-    // Filtered suggestions logic (uses base procurements for global search, or filtered?)
-    // Search usually implies global search. I'll keep it global to find any record.
     const filteredSuggestions = useMemo(() => {
         if (!searchQuery.trim()) return [];
         return procurements
@@ -245,28 +203,30 @@ const Dashboard: React.FC = () => {
         const shelf = shelves.find(s => s.id === p.shelfId);
         const box = p.boxId ? boxes.find(b => b.id === p.boxId) : null;
         const folder = folders.find(f => f.id === p.folderId);
-
-        if (box && folder) {
-            return `${box.code} → ${folder.code}`;
-        } else if (cabinet && shelf && folder) {
-            return `${cabinet.code} → ${shelf.code} → ${folder.code}`;
-        }
+        if (box && folder) return `${box.code} → ${folder.code}`;
+        if (cabinet && shelf && folder) return `${cabinet.code} → ${shelf.code} → ${folder.code}`;
         return 'Unknown Location';
     };
 
+    const getDaysLeft = (deadline?: string) => {
+        if (!deadline) return null;
+        try {
+            const days = differenceInCalendarDays(new Date(deadline), new Date());
+            if (days < 0) return { label: `${Math.abs(days)}d overdue`, color: 'text-red-400' };
+            if (days === 0) return { label: 'Due today!', color: 'text-red-400 animate-pulse' };
+            if (days <= 3) return { label: `${days}d left`, color: 'text-orange-400' };
+            if (days <= 7) return { label: `${days}d left`, color: 'text-amber-400' };
+            return { label: `${days}d left`, color: 'text-slate-400' };
+        } catch { return null; }
+    };
+
     const handleExportDashboard = async () => {
-        // Export logic... (kept same as before, omitted for brevity if needed, but I'll write it out)
         const dashboardElement = document.getElementById('dashboard-content');
         if (!dashboardElement) return;
-
         try {
             const canvas = await html2canvas(dashboardElement as HTMLElement, {
-                scale: 1,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#020617'
+                scale: 1, useCORS: true, logging: false, backgroundColor: '#020617'
             });
-
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -275,17 +235,14 @@ const Dashboard: React.FC = () => {
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             let heightLeft = imgHeight;
             let position = 0;
-
             pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
             heightLeft -= pdfHeight;
-
             while (heightLeft >= 0) {
                 position = heightLeft - imgHeight;
                 pdf.addPage();
                 pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
                 heightLeft -= pdfHeight;
             }
-
             pdf.save('dashboard-summary.pdf');
             toast.success('Dashboard summary exported successfully');
         } catch (error) {
@@ -318,7 +275,6 @@ const Dashboard: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex gap-3 items-center">
-                    {/* Year Filter */}
                     <div className="w-[150px]">
                         <Select value={selectedYear} onValueChange={setSelectedYear}>
                             <SelectTrigger className="bg-[#1e293b] border-slate-700 text-white h-10">
@@ -333,8 +289,6 @@ const Dashboard: React.FC = () => {
                             </SelectContent>
                         </Select>
                     </div>
-
-
                 </div>
             </div>
 
@@ -345,7 +299,6 @@ const Dashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col gap-4">
-                        {/* Search Bar */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />
                             <Input
@@ -386,8 +339,6 @@ const Dashboard: React.FC = () => {
                                 </div>
                             )}
                         </div>
-
-                        {/* Action Buttons */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                             {user?.role !== 'viewer' && user?.role !== 'archiver' && (
                                 <Button onClick={() => navigate('/procurement/add')} className="bg-blue-600 hover:bg-blue-700 justify-start h-auto py-3">
@@ -573,7 +524,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="grid gap-6 grid-cols-1 md:grid-cols-5">
-                    {/* Top Storages Chart (Mixed Drawers & Boxes) */}
+                    {/* Top Storages Chart */}
                     <Card className="md:col-span-2 border-none bg-[#0f172a] text-white shadow-lg">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-base">
@@ -584,9 +535,7 @@ const Dashboard: React.FC = () => {
                         <CardContent>
                             <div className="h-[350px]">
                                 {storageStats.length === 0 ? (
-                                    <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                                        No data available
-                                    </div>
+                                    <div className="flex items-center justify-center h-full text-slate-400 text-sm">No data available</div>
                                 ) : (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={storageStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -604,7 +553,6 @@ const Dashboard: React.FC = () => {
                                             <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
                                             <Tooltip
                                                 cursor={{ fill: '#1e293b' }}
-                                                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
                                                 content={({ active, payload, label }) => {
                                                     if (active && payload && payload.length) {
                                                         const data = payload[0].payload;
@@ -619,19 +567,14 @@ const Dashboard: React.FC = () => {
                                                     return null;
                                                 }}
                                             />
-                                            <Bar
-                                                dataKey="count"
-                                                radius={[4, 4, 0, 0]}
-                                                barSize={30}
-                                            >
+                                            <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>
                                                 {storageStats.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={entry.type === 'Box' ? 'url(#barGradientBox)' : 'url(#barGradientDrawer)'} />
                                                 ))}
                                                 <LabelList dataKey="count" position="insideTop" fill="#fff" fontSize={12} fontWeight="bold" />
                                             </Bar>
                                             <Legend
-                                                verticalAlign="bottom"
-                                                height={36}
+                                                verticalAlign="bottom" height={36}
                                                 content={() => (
                                                     <div className="flex justify-center gap-4 text-xs font-medium text-slate-300 pb-2">
                                                         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-blue-500"></div>Drawer</div>
@@ -646,7 +589,7 @@ const Dashboard: React.FC = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Consolidated Storage Hierarchy Chart */}
+                    {/* Storage Hierarchy Chart */}
                     <Card className="col-span-3 border-none bg-[#0f172a] text-white shadow-lg">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -668,7 +611,6 @@ const Dashboard: React.FC = () => {
                                                         <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-lg shadow-xl">
                                                             <p className="font-semibold text-white mb-2">{label} {data.type === 'box' ? '(Box)' : '(Drawer)'}</p>
                                                             <div className="space-y-1">
-                                                                {/* Conditionally show Cabinets if relevant */}
                                                                 {data.type === 'drawer' && (
                                                                     <p className="text-sm text-slate-300 flex items-center">
                                                                         <span className="w-2 h-2 rounded-full bg-[#9333ea] mr-2"></span>
@@ -690,7 +632,7 @@ const Dashboard: React.FC = () => {
                                                 return null;
                                             }}
                                             cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                            position={{ y: 280 }} // Force tooltip to bottom
+                                            position={{ y: 280 }}
                                         />
                                         <Legend />
                                         <Bar dataKey="Cabinets" name="Cabinets" fill="#9333ea" radius={[4, 4, 0, 0]}>
@@ -709,43 +651,126 @@ const Dashboard: React.FC = () => {
                     </Card>
                 </div>
 
-                {/* Recent Activity */}
-                <Card className="border-none bg-[#0f172a] text-white shadow-lg">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <CardTitle>Recent Activity {selectedYear !== 'all' && `(${selectedYear})`}</CardTitle>
-                        <Clock className="h-4 w-4 text-slate-400" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            {recentProcurements.length === 0 ? (
-                                <p className="text-center text-slate-400 py-8">No recent activities for {selectedYear !== 'all' ? selectedYear : 'this period'}</p>
-                            ) : (
-                                recentProcurements.map((p) => (
-                                    <div key={p.id} className="flex items-center justify-between p-4 rounded-xl bg-[#1e293b] hover:bg-[#253045] transition-colors group">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${p.status === 'active' ? 'bg-amber-500/20 text-amber-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
-                                                {p.status === 'active' ? <FileText className="h-5 w-5" /> : <Archive className="h-5 w-5" />}
+                {/* Recent Activity + Urgent Records side by side */}
+                <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+
+                    {/* Recent Activity */}
+                    <Card className="border-none bg-[#0f172a] text-white shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle className="text-base">
+                                Recent Activity {selectedYear !== 'all' && `(${selectedYear})`}
+                            </CardTitle>
+                            <Clock className="h-4 w-4 text-slate-400" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {recentProcurements.length === 0 ? (
+                                    <p className="text-center text-slate-400 py-8">
+                                        No recent activities for {selectedYear !== 'all' ? selectedYear : 'this period'}
+                                    </p>
+                                ) : (
+                                    recentProcurements.map((p) => (
+                                        <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-[#1e293b] hover:bg-[#253045] transition-colors group">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 ${p.status === 'active' ? 'bg-amber-500/20 text-amber-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                                                    {p.status === 'active' ? <FileText className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-semibold text-white text-sm">{p.prNumber}</p>
+                                                    <p className="text-xs text-slate-400 truncate">{p.description}</p>
+                                                    <p className="text-xs text-blue-400 mt-0.5">📍 {getLocationString(p)}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-white">{p.prNumber}</p>
-                                                <p className="text-xs text-slate-400 line-clamp-1">{p.description}</p>
-                                                <p className="text-xs text-blue-400 mt-1">Location: {getLocationString(p)}</p>
+                                            <div className="text-right flex-shrink-0 ml-2">
+                                                <p className={`text-xs font-medium ${p.status === 'active' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                                    {p.status === 'active' ? 'Borrowed' : 'Archived'}
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    {new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className={`text-sm font-medium ${p.status === 'active' ? 'text-amber-500' : 'text-emerald-500'}`}>
-                                                {p.status === 'active' ? 'Borrowed' : 'Archived'}
-                                            </p>
-                                            <p className="text-xs text-slate-400">
-                                                {new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Urgent Records — Critical & High only, top 5 */}
+                    <Card className="border-none bg-[#0f172a] text-white shadow-lg">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4 text-red-500" />
+                                Urgent Records
+                            </CardTitle>
+                            <button
+                                onClick={() => navigate('/urgent-records')}
+                                className="text-xs text-slate-400 hover:text-white transition-colors underline underline-offset-2"
+                            >
+                                View all
+                            </button>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {urgentRecords.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-500">
+                                        <AlertCircle className="h-8 w-8 opacity-30" />
+                                        <p className="text-sm">No critical or high urgency records</p>
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                                ) : (
+                                    urgentRecords.map((p) => {
+                                        const daysLeft = getDaysLeft(p.deadline);
+                                        const isCritical = p.urgencyLevel === 'Critical';
+                                        return (
+                                            <div
+                                                key={p.id}
+                                                className={`flex items-center justify-between p-3 rounded-xl transition-colors group border-l-2 bg-[#1e293b] hover:bg-[#253045] ${isCritical ? 'border-red-500' : 'border-orange-500'}`}
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    {/* Urgency indicator dot */}
+                                                    <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 ${isCritical ? 'bg-red-500/15 text-red-400' : 'bg-orange-500/15 text-orange-400'}`}>
+                                                        <AlertCircle className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <p className="font-semibold text-white text-sm">{p.prNumber}</p>
+                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isCritical ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                                                                {isCritical ? '🔴 Critical' : '🟠 High'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                                                            {p.projectName || p.description || '—'}
+                                                        </p>
+                                                        {p.division && (
+                                                            <p className="text-xs text-slate-500 mt-0.5">{p.division}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right flex-shrink-0 ml-2">
+                                                    {p.deadline ? (
+                                                        <>
+                                                            <p className="text-xs text-slate-400 font-mono">
+                                                                {format(new Date(p.deadline), 'MMM d, yyyy')}
+                                                            </p>
+                                                            {daysLeft && (
+                                                                <p className={`text-xs font-semibold mt-0.5 ${daysLeft.color}`}>
+                                                                    {daysLeft.label}
+                                                                </p>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-xs text-slate-600">No deadline</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                </div>
             </div>
         </div>
     );
