@@ -4,7 +4,7 @@ import {
     FileSpreadsheet, BarChart2, Lightbulb, Info, FileText, Users,
     DollarSign, Send, Package, Archive, FolderOpen, Printer, Camera,
     Megaphone, Gavel, Star, Search, ClipboardList, BookMarked, AlertCircle,
-    X, CheckCircle2
+    X, CheckCircle2, Copy,
 } from 'lucide-react';
 
 /* ─── Google Sheets Quick-Links ─── */
@@ -249,7 +249,7 @@ const PROCESS_STEPS = [
             { main: 'Scan all compiled procurement documents for the BAC Office\'s digital archive copy.', subs: [] },
             {
                 main: 'Prepare the document package to be forwarded to GSD. Include:',
-                subs: ['1 copy of the Abstract of Quotations', '1 copy of the BAC Resolution(Only for 50K Above)', '1 draft copy of the Abstract', '1 copy of the Purchase Request'],
+                subs: ['1 copy of the Abstract of Quotations', '1 copy of the BAC Resolution (Only for 50K Above)', '1 draft copy of the Abstract', '1 copy of the Purchase Request'],
             },
             {
                 main: 'Log the outgoing documents in the BAC Outgoing Log Book.',
@@ -394,15 +394,11 @@ const PROCESS_STEPS = [
     },
 ];
 
-const CATEGORY_STYLES: Record<string, { dot: string; label: string }> = {
-    common: { dot: 'bg-purple-400', label: 'text-purple-300' },
-    svp: { dot: 'bg-emerald-400', label: 'text-emerald-300' },
-    rb: { dot: 'bg-blue-400', label: 'text-blue-300' },
-    optional: { dot: 'bg-yellow-400', label: 'text-yellow-300' },
-    additional: { dot: 'bg-pink-400', label: 'text-pink-300' },
-};
-
-/* ─── Validate on Google Sheets modal ─── */
+/* ─── Validate Modal ─────────────────────────────────────────────────────────
+   Key behaviour: when the user types a PR number and clicks "Open Sheet",
+   the PR number is automatically copied to the clipboard so they can just
+   press Ctrl+F → Ctrl+V inside the sheet without having to re-type anything.
+─────────────────────────────────────────────────────────────────────────── */
 interface SheetLink {
     label: string;
     desc: string;
@@ -416,32 +412,48 @@ interface SheetLink {
 
 const ValidateModal: React.FC<{ link: SheetLink; onClose: () => void }> = ({ link, onClose }) => {
     const [prNumber, setPrNumber] = useState('');
-
-    const buildUrl = () => {
-        const base = link.url;
-        if (!prNumber.trim()) return base;
-        // Google Sheets uses URL hash for navigation; append a search query via ctrl+f workaround note
-        // We open the sheet and pass #gid=0 so the user lands at the right tab
-        return `${base}${link.searchParam}`;
-    };
-
-    const handleOpen = () => {
-        window.open(buildUrl(), '_blank', 'noopener,noreferrer');
-    };
+    const [copied,   setCopied]   = useState(false);
 
     const Icon = link.icon;
+
+    // Copy to clipboard helper
+    const copyToClipboard = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    // Open the sheet AND auto-copy the PR number at the same moment
+    const handleOpen = async () => {
+        if (prNumber.trim()) {
+            await copyToClipboard(prNumber.trim());
+        }
+        window.open(link.url, '_blank', 'noopener,noreferrer');
+    };
+
+    // Manual copy button (without opening the sheet)
+    const handleCopyOnly = () => copyToClipboard(prNumber.trim());
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-[460px] rounded-2xl bg-[#0d0d1c] border border-[#1e1e38] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
-                {/* Header */}
+
+                {/* ── Header ── */}
                 <div className="p-5 border-b border-[#1e1e38]">
                     <div className="flex items-center justify-between mb-3">
                         <div className={`flex items-center gap-2 px-2.5 py-1 rounded text-[10px] font-bold tracking-wider ${link.badge}`}>
                             <Icon className="w-3 h-3" />
                             VIEW & VALIDATE
                         </div>
-                        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/8 text-slate-500 hover:text-slate-300 transition">
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 rounded-lg hover:bg-white/8 text-slate-500 hover:text-slate-300 transition"
+                        >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -449,34 +461,81 @@ const ValidateModal: React.FC<{ link: SheetLink; onClose: () => void }> = ({ lin
                     <p className="text-xs text-slate-500 mt-0.5">{link.desc}</p>
                 </div>
 
-                {/* Body */}
+                {/* ── Body ── */}
                 <div className="p-5 space-y-4">
                     <div>
                         <label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase mb-2 block">
-                            PR Number (optional — for quick search)
+                            PR Number{' '}
+                            <span className="normal-case font-normal text-slate-600">
+                                (optional — for quick search)
+                            </span>
                         </label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+
+                        {/* Input row with inline copy button */}
+                        <div className="relative flex items-center">
+                            <Search className="absolute left-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
                             <input
                                 type="text"
                                 value={prNumber}
-                                onChange={(e) => setPrNumber(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleOpen(); }}
+                                onChange={e => setPrNumber(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') handleOpen(); }}
                                 placeholder="e.g. 2025-MAR-001 or GSD-MAR-25-001"
-                                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#111124] border border-[#1e1e38] text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition"
+                                className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#111124] border border-[#1e1e38] text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition"
                             />
+                            {prNumber.trim() && (
+                                <button
+                                    onClick={handleCopyOnly}
+                                    title="Copy PR number to clipboard"
+                                    className="absolute right-2.5 p-1 rounded text-slate-500 hover:text-slate-200 transition"
+                                >
+                                    {copied
+                                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                        : <Copy className="w-4 h-4" />
+                                    }
+                                </button>
+                            )}
                         </div>
-                        {prNumber.trim() && (
-                            <div className="mt-2.5 p-3 rounded-lg bg-indigo-500/8 border border-indigo-500/20">
-                                <p className="text-[11px] text-indigo-300 leading-relaxed">
-                                    <span className="font-semibold">Tip:</span> After the sheet opens, press{' '}
-                                    <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-mono">Ctrl + F</kbd>{' '}
-                                    and type <span className="font-mono font-bold text-white">{prNumber}</span> to find the record instantly.
+
+                        {/* Contextual hint */}
+                        {prNumber.trim() ? (
+                            <div className="mt-2.5 p-3 rounded-lg bg-emerald-500/8 border border-emerald-500/20 space-y-2">
+                                <p className="text-[11px] text-emerald-300 font-semibold flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                    After clicking "Open Sheet", do this inside Google Sheets:
+                                </p>
+                                <ol className="space-y-1.5 ml-1">
+                                    <li className="flex items-center gap-2 text-[11px]">
+                                        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-400">1</span>
+                                        <span className="text-slate-400">
+                                            Press{' '}
+                                            <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-mono">Ctrl + F</kbd>
+                                            {' '}to open the search bar
+                                        </span>
+                                    </li>
+                                    <li className="flex items-center gap-2 text-[11px]">
+                                        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-400">2</span>
+                                        <span className="text-slate-400">
+                                            Press{' '}
+                                            <kbd className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200 text-[10px] font-mono">Ctrl + V</kbd>
+                                            {' '}— the PR number is <span className="text-emerald-400 font-semibold">already copied!</span>
+                                        </span>
+                                    </li>
+                                </ol>
+                                <p className="text-[10px] text-slate-600 pl-1 pt-0.5">
+                                    Searching for:{' '}
+                                    <span className="font-mono text-slate-400">{prNumber.trim()}</span>
                                 </p>
                             </div>
+                        ) : (
+                            <p className="mt-2 text-[11px] text-slate-600 leading-relaxed">
+                                Enter a PR Number above and it will be automatically copied to your clipboard when you open the sheet — just press{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-mono">Ctrl+F</kbd>{' '}then{' '}
+                                <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-mono">Ctrl+V</kbd>.
+                            </p>
                         )}
                     </div>
 
+                    {/* ── Action buttons ── */}
                     <div className="flex gap-2.5">
                         <button
                             onClick={onClose}
@@ -486,10 +545,19 @@ const ValidateModal: React.FC<{ link: SheetLink; onClose: () => void }> = ({ lin
                         </button>
                         <button
                             onClick={handleOpen}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:brightness-110 bg-gradient-to-r from-indigo-600 to-violet-600`}
+                            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:brightness-110 bg-gradient-to-r from-indigo-600 to-violet-600"
                         >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            Open Sheet
+                            {copied ? (
+                                <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                                    Copied & Opened
+                                </>
+                            ) : (
+                                <>
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    Open Sheet
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -498,7 +566,7 @@ const ValidateModal: React.FC<{ link: SheetLink; onClose: () => void }> = ({ lin
     );
 };
 
-/* ─── Step Card ─── */
+/* ─── Step Card ──────────────────────────────────────────────────────────── */
 interface Step {
     id: number;
     category: string;
@@ -520,7 +588,7 @@ const StepCard: React.FC<{ step: Step }> = ({ step }) => {
     return (
         <div className={`rounded-xl border ${step.color} overflow-hidden transition-all duration-200`}>
             <button
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => setOpen(o => !o)}
                 className={`w-full flex items-center gap-4 px-5 py-4 ${step.headerColor} border-b ${open ? '' : 'border-transparent'} transition-colors hover:brightness-110 text-left`}
             >
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-black/30 flex items-center justify-center">
@@ -580,25 +648,29 @@ const StepCard: React.FC<{ step: Step }> = ({ step }) => {
     );
 };
 
-/* ─── Main Page ─── */
+/* ─── Main Page ──────────────────────────────────────────────────────────── */
 const ProcurementProcessFlow: React.FC = () => {
     const [categoryFilter, setCategoryFilter] = useState('all');
-    const [validateModal, setValidateModal] = useState<SheetLink | null>(null);
+    const [validateModal, setValidateModal]   = useState<SheetLink | null>(null);
 
     const categories = [
-        { id: 'all', label: 'All Steps', dot: 'bg-slate-400' },
-        { id: 'common', label: 'Common', dot: 'bg-purple-400' },
-        { id: 'svp', label: 'SVP', dot: 'bg-emerald-400' },
-        { id: 'rb', label: 'Reg. Bidding', dot: 'bg-blue-400' },
-        { id: 'optional', label: 'Optional', dot: 'bg-yellow-400' },
-        { id: 'additional', label: 'Additional', dot: 'bg-pink-400' },
+        { id: 'all',        label: 'All Steps',    dot: 'bg-slate-400'  },
+        { id: 'common',     label: 'Common',       dot: 'bg-purple-400' },
+        { id: 'svp',        label: 'SVP',          dot: 'bg-emerald-400'},
+        { id: 'rb',         label: 'Reg. Bidding', dot: 'bg-blue-400'   },
+        { id: 'optional',   label: 'Optional',     dot: 'bg-yellow-400' },
+        { id: 'additional', label: 'Additional',   dot: 'bg-pink-400'   },
     ];
 
-    const filtered = categoryFilter === 'all' ? PROCESS_STEPS : PROCESS_STEPS.filter((s) => s.category === categoryFilter);
+    const filtered = categoryFilter === 'all'
+        ? PROCESS_STEPS
+        : PROCESS_STEPS.filter(s => s.category === categoryFilter);
 
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
-            {validateModal && <ValidateModal link={validateModal} onClose={() => setValidateModal(null)} />}
+            {validateModal && (
+                <ValidateModal link={validateModal} onClose={() => setValidateModal(null)} />
+            )}
 
             {/* Header */}
             <div>
@@ -618,10 +690,13 @@ const ProcurementProcessFlow: React.FC = () => {
                     <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Quick Access — Google Sheets</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {SHEET_LINKS.map((link) => {
+                    {SHEET_LINKS.map(link => {
                         const Icon = link.icon;
                         return (
-                            <div key={link.label} className={`group relative flex flex-col gap-3 p-4 rounded-xl border bg-gradient-to-br ${link.color} transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}>
+                            <div
+                                key={link.label}
+                                className={`group relative flex flex-col gap-3 p-4 rounded-xl border bg-gradient-to-br ${link.color} transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}
+                            >
                                 <div className="flex items-center justify-between">
                                     <div className={`flex items-center gap-2 px-2 py-1 rounded text-[9px] font-bold tracking-wider ${link.badge}`}>
                                         <Icon className="w-3 h-3" />
@@ -632,7 +707,6 @@ const ProcurementProcessFlow: React.FC = () => {
                                     <p className="text-sm font-bold text-slate-100">{link.label}</p>
                                     <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{link.desc}</p>
                                 </div>
-                                {/* Two buttons: direct open + validate */}
                                 <div className="flex gap-1.5 mt-auto">
                                     <a
                                         href={link.url}
@@ -661,22 +735,28 @@ const ProcurementProcessFlow: React.FC = () => {
 
             {/* Legend + Filter */}
             <div className="flex flex-wrap items-center gap-2">
-                {categories.map((cat) => (
+                {categories.map(cat => (
                     <button
                         key={cat.id}
                         onClick={() => setCategoryFilter(cat.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${categoryFilter === cat.id ? 'bg-secondary text-foreground border border-border' : 'text-muted-foreground hover:text-foreground border border-transparent'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            categoryFilter === cat.id
+                                ? 'bg-secondary text-foreground border border-border'
+                                : 'text-muted-foreground hover:text-foreground border border-transparent'
+                        }`}
                     >
                         <span className={`w-2 h-2 rounded-full ${cat.dot}`} />
                         {cat.label}
                     </button>
                 ))}
-                <span className="ml-auto text-[11px] text-muted-foreground">{filtered.length} step{filtered.length !== 1 ? 's' : ''}</span>
+                <span className="ml-auto text-[11px] text-muted-foreground">
+                    {filtered.length} step{filtered.length !== 1 ? 's' : ''}
+                </span>
             </div>
 
             {/* Steps */}
             <div className="space-y-3">
-                {filtered.map((step) => (
+                {filtered.map(step => (
                     <StepCard key={step.id} step={step} />
                 ))}
             </div>
