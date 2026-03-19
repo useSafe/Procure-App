@@ -475,11 +475,11 @@ const Folders: React.FC = () => {
                         {/* Drawer */}
                         <Select value={filterTier1Id || 'all'} onValueChange={handleFilterTier1Change}>
                             <SelectTrigger className={cn(
-                                'h-8 text-xs border-slate-700 text-white w-[130px]',
+                                'h-8 text-xs border-slate-700 text-white w-[160px]',
                                 activeDrawer ? 'bg-blue-500/10 border-blue-500/40' : 'bg-[#1e293b]'
                             )}>
-                                <span className="truncate block w-full text-left">
-                                    {activeDrawer ? `${activeDrawer.code}` : 'All Drawers'}
+                                <span className="truncate">
+                                    {activeDrawer ? `${activeDrawer.code} – ${activeDrawer.name}` : 'All Drawers'}
                                 </span>
                             </SelectTrigger>
                             <SelectContent className="bg-[#1e293b] border-slate-700 text-white">
@@ -491,12 +491,12 @@ const Folders: React.FC = () => {
                         {/* Cabinet */}
                         <Select value={filterCabinetId || 'all'} onValueChange={handleFilterCabinetChange}>
                             <SelectTrigger className={cn(
-                                'h-8 text-xs border-slate-700 text-white w-[130px]',
+                                'h-8 text-xs border-slate-700 text-white w-[160px]',
                                 activeCabinet ? 'bg-purple-500/10 border-purple-500/40' : 'bg-[#1e293b]',
                                 activeBox ? 'opacity-40 pointer-events-none' : ''
                             )}>
-                                <span className="truncate block w-full text-left">
-                                    {activeCabinet ? `${activeCabinet.code}` : 'All Cabinets'}
+                                <span className="truncate">
+                                    {activeCabinet ? `${activeCabinet.code} – ${activeCabinet.name}` : 'All Cabinets'}
                                 </span>
                             </SelectTrigger>
                             <SelectContent className="bg-[#1e293b] border-slate-700 text-white">
@@ -512,14 +512,16 @@ const Folders: React.FC = () => {
                         {/* Box */}
                         <Select value={filterBoxId || 'all'} onValueChange={handleFilterBoxChange}>
                             <SelectTrigger className={cn(
-                                'h-8 text-xs border-slate-700 text-white w-[130px] gap-1',
+                                'h-8 text-xs border-slate-700 text-white w-[160px]',
                                 activeBox ? 'bg-amber-500/10 border-amber-500/40' : 'bg-[#1e293b]',
                                 (activeDrawer || activeCabinet) ? 'opacity-40 pointer-events-none' : ''
                             )}>
-                                <BoxIcon className="h-3 w-3 text-amber-400 flex-shrink-0" />
-                                <span className="truncate block w-full text-left">
-                                    {activeBox ? `${activeBox.code}` : 'All Boxes'}
-                                </span>
+                                <div className="flex items-center gap-1 min-w-0">
+                                    <BoxIcon className="h-3 w-3 text-amber-400 flex-shrink-0" />
+                                    <span className="truncate">
+                                        {activeBox ? `${activeBox.code} – ${activeBox.name}` : 'All Boxes'}
+                                    </span>
+                                </div>
                             </SelectTrigger>
                             <SelectContent className="bg-[#1e293b] border-slate-700 text-white">
                                 <SelectItem value="all">All Boxes</SelectItem>
