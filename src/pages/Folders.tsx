@@ -44,31 +44,27 @@ import { addFolder, updateFolder, deleteFolder } from '@/lib/storage';
 import { Cabinet, Shelf, Folder, Procurement } from '@/types/procurement';
 import { useData } from '@/contexts/DataContext';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, FileText, Eye, FolderOpen, ArrowUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Eye, FolderOpen, ArrowUp, Box as BoxIcon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 
 const Folders: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const cabinetIdFromUrl = searchParams.get('cabinetId'); // Actually Cabinet ID (Parent)
+    const cabinetIdFromUrl = searchParams.get('cabinetId');
     const boxIdFromUrl = searchParams.get('boxId');
 
-    // DataContext
-    // shelves = Tier 1 (S1)
-    // cabinets = Tier 2 (C1)
-    // folders = Tier 3 (F1)
     const { shelves, cabinets, folders, boxes, procurements } = useData();
 
     // UI State
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [isRelocateDialogOpen, setIsRelocateDialogOpen] = useState(false); // New Relocate Modal
+    const [isRelocateDialogOpen, setIsRelocateDialogOpen] = useState(false);
     const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
-    const [relocateFolder, setRelocateFolder] = useState<Folder | null>(null); // New Folder to Relocate
+    const [relocateFolder, setRelocateFolder] = useState<Folder | null>(null);
     const [newStackNumber, setNewStackNumber] = useState<number>(0);
 
-    // Filter
-    const [filterTier1Id, setFilterTier1Id] = useState<string>(''); // Filter by Shelf (Tier 1)
+    // Filter state
+    const [filterTier1Id, setFilterTier1Id] = useState<string>('');
     const [filterCabinetId, setFilterCabinetId] = useState<string>(cabinetIdFromUrl || '');
     const [filterBoxId, setFilterBoxId] = useState<string>(boxIdFromUrl || '');
     const [searchQuery, setSearchQuery] = useState('');
@@ -82,15 +78,13 @@ const Folders: React.FC = () => {
     // Form State
     const [name, setName] = useState('');
     const [code, setCode] = useState('');
-    const [selectedTier1Id, setSelectedTier1Id] = useState(''); // Drawer (Cabinet in DB)
-    const [selectedTier2Id, setSelectedTier2Id] = useState(''); // Cabinet (Shelf in DB)
-    const [selectedBoxId, setSelectedBoxId] = useState('');     // Box
-    const [parentType, setParentType] = useState<'shelf' | 'box'>('shelf'); // Parent Type
-
+    const [selectedTier1Id, setSelectedTier1Id] = useState('');
+    const [selectedTier2Id, setSelectedTier2Id] = useState('');
+    const [selectedBoxId, setSelectedBoxId] = useState('');
+    const [parentType, setParentType] = useState<'shelf' | 'box'>('shelf');
     const [description, setDescription] = useState('');
     const [color, setColor] = useState('#FF6B6B');
 
-    // Default color options
     const DEFAULT_COLORS = [
         '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
         '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B88B', '#A8E6CF',
@@ -100,12 +94,34 @@ const Folders: React.FC = () => {
         if (cabinetIdFromUrl) {
             setFilterCabinetId(cabinetIdFromUrl);
             setFilterBoxId('');
+            setFilterTier1Id('');
         }
         if (boxIdFromUrl) {
             setFilterBoxId(boxIdFromUrl);
-            setFilterCabinetId(''); // Clear cabinet filter if box is selected
+            setFilterCabinetId('');
+            setFilterTier1Id('');
         }
     }, [cabinetIdFromUrl, boxIdFromUrl]);
+
+    // When box filter is set, clear drawer/cabinet filters and vice versa
+    const handleFilterBoxChange = (val: string) => {
+        setFilterBoxId(val);
+        if (val && val !== 'all') {
+            setFilterTier1Id('');
+            setFilterCabinetId('');
+        }
+    };
+
+    const handleFilterTier1Change = (val: string) => {
+        setFilterTier1Id(val);
+        setFilterCabinetId('');
+        if (val && val !== 'all') setFilterBoxId('');
+    };
+
+    const handleFilterCabinetChange = (val: string) => {
+        setFilterCabinetId(val);
+        if (val && val !== 'all') setFilterBoxId('');
+    };
 
     const resetForm = () => {
         setName('');
@@ -120,7 +136,6 @@ const Folders: React.FC = () => {
     };
 
     const handleAdd = async () => {
-        // Validation
         if (!name || !code) {
             toast.error('Name and Code are required');
             return;
@@ -128,16 +143,10 @@ const Folders: React.FC = () => {
 
         let parentId = '';
         if (parentType === 'shelf') {
-            if (!selectedTier2Id) {
-                toast.error('Parent Cabinet is required');
-                return;
-            }
+            if (!selectedTier2Id) { toast.error('Parent Cabinet is required'); return; }
             parentId = selectedTier2Id;
         } else {
-            if (!selectedBoxId) {
-                toast.error('Parent Box is required');
-                return;
-            }
+            if (!selectedBoxId) { toast.error('Parent Box is required'); return; }
             parentId = selectedBoxId;
         }
 
@@ -147,7 +156,6 @@ const Folders: React.FC = () => {
             resetForm();
             toast.success('Folder added successfully');
         } catch (error: any) {
-            console.error(error);
             toast.error(`Failed to add folder: ${error.message || 'Unknown error'}`);
         }
     };
@@ -160,19 +168,16 @@ const Folders: React.FC = () => {
         if (folder.boxId) {
             setParentType('box');
             setSelectedBoxId(folder.boxId);
-            // Find parent Cabinet (Tier 2) -> Drawer (Tier 1) logic
             const box = boxes.find(b => b.id === folder.boxId);
             if (box) {
-                if (box.shelfId) setSelectedTier2Id(box.shelfId); // Box's ShelfId is Cabinet
-                if (box.cabinetId) setSelectedTier1Id(box.cabinetId); // Box's CabinetId is Drawer
+                if (box.shelfId) setSelectedTier2Id(box.shelfId);
+                if (box.cabinetId) setSelectedTier1Id(box.cabinetId);
             }
         } else if (folder.shelfId) {
             setParentType('shelf');
             setSelectedTier2Id(folder.shelfId);
-            const shelf = shelves.find(s => s.id === folder.shelfId); // Shelf is Cabinet
-            if (shelf) {
-                setSelectedTier1Id(shelf.cabinetId); // Cabinet is Drawer
-            }
+            const shelf = shelves.find(s => s.id === folder.shelfId);
+            if (shelf) setSelectedTier1Id(shelf.cabinetId);
         }
 
         setDescription(folder.description || '');
@@ -193,33 +198,20 @@ const Folders: React.FC = () => {
         }
 
         try {
-            // Explicitly set the other ID to null/undefined to clear it if moving between types
             const updates: any = {
-                name,
-                code,
-                description,
-                color,
+                name, code, description, color,
                 shelfId: parentType === 'shelf' ? parentId : null,
-                boxId: parentType === 'box' ? parentId : null
+                boxId: parentType === 'box' ? parentId : null,
             };
 
-            // Check if parent changed
             const isOldShelf = !!currentFolder.shelfId;
             const isNewShelf = parentType === 'shelf';
-
             const oldParentId = currentFolder.shelfId || currentFolder.boxId;
-            const newParentId = parentId;
-
-            const hasParentChanged = (isOldShelf !== isNewShelf) || (oldParentId !== newParentId);
+            const hasParentChanged = (isOldShelf !== isNewShelf) || (oldParentId !== parentId);
 
             if (hasParentChanged) {
-                // Calculate new stack number
-                const siblings = folders.filter(f => {
-                    if (isNewShelf) return f.shelfId === newParentId;
-                    return f.boxId === newParentId;
-                });
-                const maxStack = Math.max(...siblings.map(f => f.stackNumber || 0), 0);
-                updates.stackNumber = maxStack + 1;
+                const siblings = folders.filter(f => isNewShelf ? f.shelfId === parentId : f.boxId === parentId);
+                updates.stackNumber = Math.max(...siblings.map(f => f.stackNumber || 0), 0) + 1;
             }
 
             await updateFolder(currentFolder.id, updates);
@@ -235,9 +227,7 @@ const Folders: React.FC = () => {
         try {
             await deleteFolder(id);
             toast.success('Folder deleted successfully');
-            if (selectedIds.includes(id)) {
-                setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
-            }
+            if (selectedIds.includes(id)) setSelectedIds(prev => prev.filter(s => s !== id));
         } catch (error) {
             toast.error('Failed to delete folder');
         }
@@ -245,18 +235,11 @@ const Folders: React.FC = () => {
 
     const handleBulkDelete = async () => {
         if (selectedIds.length === 0) return;
-
-        // Validation: Check if any selected folder has contents
-        const foldersWithContents = selectedIds.filter(id => {
-            const stats = getFolderStats(id);
-            return stats.files > 0;
-        });
-
-        if (foldersWithContents.length > 0) {
-            toast.error(`Cannot delete ${foldersWithContents.length} folders because they contain items. Please empty them first.`);
+        const withContents = selectedIds.filter(id => getFolderStats(id).files > 0);
+        if (withContents.length > 0) {
+            toast.error(`Cannot delete ${withContents.length} folders because they contain items.`);
             return;
         }
-
         try {
             await Promise.all(selectedIds.map(id => deleteFolder(id)));
             toast.success(`${selectedIds.length} folders deleted successfully`);
@@ -268,26 +251,17 @@ const Folders: React.FC = () => {
     };
 
     const handleSelectAll = (checked: boolean) => {
-        if (checked) {
-            const currentIds = filteredFolders.map(c => c.id);
-            setSelectedIds(prev => Array.from(new Set([...prev, ...currentIds])));
-        } else {
-            const currentIds = filteredFolders.map(c => c.id);
-            setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
-        }
+        const currentIds = filteredFolders.map(c => c.id);
+        if (checked) setSelectedIds(prev => Array.from(new Set([...prev, ...currentIds])));
+        else setSelectedIds(prev => prev.filter(id => !currentIds.includes(id)));
     };
 
     const handleSelectOne = (id: string, checked: boolean) => {
-        if (checked) {
-            setSelectedIds(prev => [...prev, id]);
-        } else {
-            setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
-        }
+        if (checked) setSelectedIds(prev => [...prev, id]);
+        else setSelectedIds(prev => prev.filter(s => s !== id));
     };
 
-    const handleViewFiles = (folderId: string) => {
-        navigate(`/procurement/list?folderId=${folderId}`);
-    };
+    const handleViewFiles = (folderId: string) => navigate(`/procurement/list?folderId=${folderId}`);
 
     const handleRelocateClick = (folder: Folder) => {
         setRelocateFolder(folder);
@@ -297,7 +271,6 @@ const Folders: React.FC = () => {
 
     const handleRelocateConfirm = async () => {
         if (!relocateFolder) return;
-
         try {
             await updateFolder(relocateFolder.id, { stackNumber: newStackNumber });
             setIsRelocateDialogOpen(false);
@@ -308,63 +281,47 @@ const Folders: React.FC = () => {
         }
     };
 
-    // Helper Functions
     const getParentCabinetName = (shelfId: string): string => {
-        // Since data is swapped: shelves array contains Tier 2 (Cabinets)
-        // and folders array contains Tier 3 (Folders)
-        // Each Folder has shelfId pointing to Tier 2 (in shelves array)
         const parentCabinet = shelves.find(s => s.id === shelfId);
         return parentCabinet ? `${parentCabinet.name} (${parentCabinet.code})` : 'Unknown';
     };
 
     const getParentShelfName = (shelfId: string): string => {
-        // folder.shelfId -> Tier 2 (Cabinet)
-        // Tier 2 (Cabinet).cabinetId -> Tier 1 (Shelf)
         const parentCabinet = shelves.find(s => s.id === shelfId);
         if (!parentCabinet) return 'Unknown';
-
         const parentShelf = cabinets.find(c => c.id === parentCabinet.cabinetId);
         return parentShelf ? `${parentShelf.name} (${parentShelf.code})` : 'Unknown';
     };
 
-    // Deep Counts (Folder Stats)
-    const getFolderStats = (folderId: string) => {
-        // Find Files in this Folder
-        const myFiles = procurements.filter(p => p.folderId === folderId);
+    const getFolderStats = (folderId: string) => ({
+        files: procurements.filter(p => p.folderId === folderId).length
+    });
 
-        return {
-            files: myFiles.length
-        };
-    };
-
-    // Filtering and Sorting
     const filteredFolders = folders
         .filter(folder => {
-            // Filter by Box
+            // Box filter takes priority — only show folders inside that box
             if (filterBoxId && filterBoxId !== 'all') {
                 return folder.boxId === filterBoxId;
             }
 
-            // Filter by parent Cabinet (dropdown/URL)
-            // folder.shelfId -> Parent Cabinet ID
+            // If filtering by box, skip drawer/cabinet checks
+            // Cabinet filter
             if (filterCabinetId && filterCabinetId !== 'all' && folder.shelfId !== filterCabinetId) {
                 return false;
             }
 
-            // Filter by Shelf (Tier 1)
+            // Drawer filter
             if (filterTier1Id && filterTier1Id !== 'all') {
                 const parentCabinet = shelves.find(s => s.id === folder.shelfId);
-                if (!parentCabinet || parentCabinet.cabinetId !== filterTier1Id) {
-                    return false;
-                }
+                if (!parentCabinet || parentCabinet.cabinetId !== filterTier1Id) return false;
             }
 
             if (searchQuery) {
-                const query = searchQuery.toLowerCase();
+                const q = searchQuery.toLowerCase();
                 return (
-                    folder.name.toLowerCase().includes(query) ||
-                    folder.code.toLowerCase().includes(query) ||
-                    (folder.description && folder.description.toLowerCase().includes(query))
+                    folder.name.toLowerCase().includes(q) ||
+                    folder.code.toLowerCase().includes(q) ||
+                    (folder.description && folder.description.toLowerCase().includes(q))
                 );
             }
             return true;
@@ -374,12 +331,8 @@ const Folders: React.FC = () => {
             if (sortField === 'name') {
                 comparison = a.name.localeCompare(b.name);
             } else if (sortField === 'code') {
-                const getCodeNum = (str: string) => {
-                    const match = str.match(/\d+/);
-                    return match ? parseInt(match[0]) : 0;
-                };
-                const aNum = getCodeNum(a.code);
-                const bNum = getCodeNum(b.code);
+                const getNum = (s: string) => { const m = s.match(/\d+/); return m ? parseInt(m[0]) : 0; };
+                const aNum = getNum(a.code), bNum = getNum(b.code);
                 comparison = aNum === bNum ? a.code.localeCompare(b.code) : aNum - bNum;
             } else if (sortField === 'contents') {
                 comparison = getFolderStats(a.id).files - getFolderStats(b.id).files;
@@ -388,6 +341,11 @@ const Folders: React.FC = () => {
             }
             return sortDirection === 'asc' ? comparison : -comparison;
         });
+
+    // Active filter summary for display
+    const activeBoxFilter = filterBoxId && filterBoxId !== 'all'
+        ? boxes.find(b => b.id === filterBoxId)
+        : null;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -428,85 +386,49 @@ const Folders: React.FC = () => {
                         <DialogContent className="bg-[#0f172a] border-slate-800 text-white s-h-[80vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>Add New Folder</DialogTitle>
-                                <DialogDescription className="text-slate-400">
-                                    Create a new folder inside a cabinet.
-                                </DialogDescription>
+                                <DialogDescription className="text-slate-400">Create a new folder inside a cabinet.</DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label className="text-right text-slate-300">Location</Label>
                                     <div className="col-span-3 flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setParentType('shelf')}
-                                            className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'shelf' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                        >
-                                            Drawer {'>'} Cabinet
+                                        <button type="button" onClick={() => setParentType('shelf')}
+                                            className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'shelf' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
+                                            Drawer &gt; Cabinet
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setParentType('box')}
-                                            className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'box' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                        >
+                                        <button type="button" onClick={() => setParentType('box')}
+                                            className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'box' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
                                             Inside Box
                                         </button>
                                     </div>
                                 </div>
-
                                 {parentType === 'shelf' && (
                                     <>
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label className="text-right text-slate-300">Drawer</Label>
-                                            <select
-                                                value={selectedTier1Id}
-                                                onChange={(e) => {
-                                                    setSelectedTier1Id(e.target.value);
-                                                    setSelectedTier2Id('');
-                                                    setSelectedBoxId('');
-                                                }}
-                                                className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2"
-                                            >
+                                            <select value={selectedTier1Id} onChange={(e) => { setSelectedTier1Id(e.target.value); setSelectedTier2Id(''); setSelectedBoxId(''); }}
+                                                className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2">
                                                 <option value="">Select Drawer</option>
-                                                {cabinets.map(c => (
-                                                    <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                                                ))}
+                                                {cabinets.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
                                             </select>
                                         </div>
-
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label className="text-right text-slate-300">Parent Cabinet</Label>
-                                            <select
-                                                value={selectedTier2Id}
-                                                onChange={(e) => {
-                                                    setSelectedTier2Id(e.target.value);
-                                                    setSelectedBoxId('');
-                                                }}
-                                                className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2"
-                                                disabled={!selectedTier1Id}
-                                            >
+                                            <select value={selectedTier2Id} onChange={(e) => { setSelectedTier2Id(e.target.value); setSelectedBoxId(''); }}
+                                                className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2" disabled={!selectedTier1Id}>
                                                 <option value="">Select Cabinet</option>
-                                                {shelves
-                                                    .filter(s => s.cabinetId === selectedTier1Id)
-                                                    .map(s => (
-                                                        <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                                                    ))}
+                                                {shelves.filter(s => s.cabinetId === selectedTier1Id).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                                             </select>
                                         </div>
                                     </>
                                 )}
-
                                 {parentType === 'box' && (
                                     <div className="grid grid-cols-4 items-center gap-4 animate-in fade-in">
                                         <Label className="text-right text-slate-300">Parent Box</Label>
-                                        <select
-                                            value={selectedBoxId}
-                                            onChange={(e) => setSelectedBoxId(e.target.value)}
-                                            className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2"
-                                        >
+                                        <select value={selectedBoxId} onChange={(e) => setSelectedBoxId(e.target.value)}
+                                            className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2">
                                             <option value="">Select Box</option>
-                                            {boxes.map(b => (
-                                                <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                                            ))}
+                                            {boxes.map(b => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
                                         </select>
                                     </div>
                                 )}
@@ -521,37 +443,20 @@ const Folders: React.FC = () => {
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="color" className="text-right text-slate-300">Color</Label>
                                     <div className="col-span-3 space-y-3">
-                                        {/* Preset Colors */}
                                         <div className="flex gap-2 flex-wrap">
                                             {DEFAULT_COLORS.map((c) => (
-                                                <button
-                                                    key={c}
-                                                    type="button"
-                                                    onClick={() => setColor(c)}
+                                                <button key={c} type="button" onClick={() => setColor(c)}
                                                     className={`w-8 h-8 rounded-full border-2 transition-all ${color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
-                                                    style={{ backgroundColor: c }}
-                                                    title={c}
-                                                />
+                                                    style={{ backgroundColor: c }} title={c} />
                                             ))}
                                         </div>
-                                        {/* Custom Color Picker */}
                                         <div className="flex items-center gap-2">
                                             <Label htmlFor="custom-color" className="text-slate-400 text-sm">Custom:</Label>
                                             <div className="flex items-center gap-2 flex-1">
-                                                <input
-                                                    id="custom-color"
-                                                    type="color"
-                                                    value={color}
-                                                    onChange={(e) => setColor(e.target.value)}
-                                                    className="h-10 w-16 rounded border-2 border-slate-700 bg-[#1e293b] cursor-pointer"
-                                                />
-                                                <Input
-                                                    type="text"
-                                                    value={color}
-                                                    onChange={(e) => setColor(e.target.value)}
-                                                    placeholder="#FF6B6B"
-                                                    className="flex-1 bg-[#1e293b] border-slate-700 text-white font-mono text-sm"
-                                                />
+                                                <input id="custom-color" type="color" value={color} onChange={(e) => setColor(e.target.value)}
+                                                    className="h-10 w-16 rounded border-2 border-slate-700 bg-[#1e293b] cursor-pointer" />
+                                                <Input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#FF6B6B"
+                                                    className="flex-1 bg-[#1e293b] border-slate-700 text-white font-mono text-sm" />
                                             </div>
                                         </div>
                                     </div>
@@ -570,18 +475,22 @@ const Folders: React.FC = () => {
                 </div>
             </div>
 
+            {/* Filter Bar */}
             <Card className="border-none bg-[#0f172a] shadow-lg">
                 <CardContent className="p-4">
-                    <div className="flex gap-4 items-center flex-wrap">
+                    <div className="flex gap-3 items-center flex-wrap">
                         <Input
                             placeholder="Search folders..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-[250px] bg-[#1e293b] border-slate-700 text-white"
+                            className="w-[220px] bg-[#1e293b] border-slate-700 text-white"
                         />
-                        <Label className="text-slate-300 whitespace-nowrap">Filter:</Label>
-                        <Select value={filterTier1Id} onValueChange={setFilterTier1Id}>
-                            <SelectTrigger className="w-[200px] bg-[#1e293b] border-slate-700 text-white">
+
+                        <Label className="text-slate-400 text-xs whitespace-nowrap font-semibold uppercase tracking-wide">Filter:</Label>
+
+                        {/* Drawer filter */}
+                        <Select value={filterTier1Id} onValueChange={handleFilterTier1Change}>
+                            <SelectTrigger className="w-[170px] bg-[#1e293b] border-slate-700 text-white">
                                 <SelectValue placeholder="All Drawers" />
                             </SelectTrigger>
                             <SelectContent className="bg-[#1e293b] border-slate-700 text-white">
@@ -592,8 +501,9 @@ const Folders: React.FC = () => {
                             </SelectContent>
                         </Select>
 
-                        <Select value={filterCabinetId} onValueChange={setFilterCabinetId}>
-                            <SelectTrigger className="w-[200px] bg-[#1e293b] border-slate-700 text-white">
+                        {/* Cabinet filter */}
+                        <Select value={filterCabinetId} onValueChange={handleFilterCabinetChange}>
+                            <SelectTrigger className="w-[170px] bg-[#1e293b] border-slate-700 text-white">
                                 <SelectValue placeholder="All Cabinets" />
                             </SelectTrigger>
                             <SelectContent className="bg-[#1e293b] border-slate-700 text-white">
@@ -605,7 +515,41 @@ const Folders: React.FC = () => {
                                     ))}
                             </SelectContent>
                         </Select>
-                        <Label className="text-slate-300 whitespace-nowrap">Sort:</Label>
+
+                        {/* ── NEW: Box filter ── */}
+                        <Select value={filterBoxId} onValueChange={handleFilterBoxChange}>
+                            <SelectTrigger className={`w-[170px] border-slate-700 text-white ${activeBoxFilter ? 'bg-amber-500/10 border-amber-500/40' : 'bg-[#1e293b]'}`}>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <BoxIcon className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                                    <SelectValue placeholder="All Boxes" />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#1e293b] border-slate-700 text-white">
+                                <SelectItem value="all">All Boxes</SelectItem>
+                                {boxes.map(b => (
+                                    <SelectItem key={b.id} value={b.id}>
+                                        {b.code} - {b.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        {/* Active box filter pill + clear */}
+                        {activeBoxFilter && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-medium">
+                                <BoxIcon className="h-3 w-3" />
+                                {activeBoxFilter.code}
+                                <button
+                                    onClick={() => { setFilterBoxId(''); }}
+                                    className="ml-0.5 hover:text-white transition-colors"
+                                    title="Clear box filter"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        )}
+
+                        <Label className="text-slate-400 text-xs whitespace-nowrap font-semibold uppercase tracking-wide ml-1">Sort:</Label>
                         <Select value={sortField} onValueChange={(value) => setSortField(value as any)}>
                             <SelectTrigger className="w-[120px] bg-[#1e293b] border-slate-700 text-white">
                                 <SelectValue />
@@ -617,8 +561,7 @@ const Folders: React.FC = () => {
                             </SelectContent>
                         </Select>
                         <Button
-                            variant="outline"
-                            size="sm"
+                            variant="outline" size="sm"
                             onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
                             className="bg-[#1e293b] border-slate-700 text-white hover:bg-slate-700"
                         >
@@ -668,10 +611,8 @@ const Folders: React.FC = () => {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                <div
-                                                    className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-xs border border-white/20"
-                                                    style={{ backgroundColor: folder.color || '#3b82f6' }}
-                                                >
+                                                <div className="h-10 w-10 rounded-lg flex items-center justify-center text-white font-bold text-xs border border-white/20"
+                                                    style={{ backgroundColor: folder.color || '#3b82f6' }}>
                                                     <FolderOpen className="h-5 w-5" />
                                                 </div>
                                                 <div>
@@ -705,13 +646,8 @@ const Folders: React.FC = () => {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
-                                                <div
-                                                    className="h-6 w-12 rounded border-2 border-white/20"
-                                                    style={{ backgroundColor: folder.color || '#3b82f6' }}
-                                                />
-                                                <span className="text-xs text-slate-400 font-mono">
-                                                    {folder.color || '#3b82f6'}
-                                                </span>
+                                                <div className="h-6 w-12 rounded border-2 border-white/20" style={{ backgroundColor: folder.color || '#3b82f6' }} />
+                                                <span className="text-xs text-slate-400 font-mono">{folder.color || '#3b82f6'}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -724,39 +660,21 @@ const Folders: React.FC = () => {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleRelocateClick(folder)}
-                                                    className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10"
-                                                    title="Relocate / Reorder"
-                                                >
+                                                <Button variant="ghost" size="icon" onClick={() => handleRelocateClick(folder)}
+                                                    className="h-8 w-8 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10" title="Relocate / Reorder">
                                                     <ArrowUp className="h-4 w-4" />
                                                 </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleViewFiles(folder.id)}
-                                                    className="h-8 bg-emerald-600/10 border-emerald-600/20 text-emerald-500 hover:bg-emerald-600/20 hover:text-emerald-400"
-                                                >
-                                                    <Eye className="h-4 w-4 mr-1" />
-                                                    View Files
+                                                <Button variant="outline" size="sm" onClick={() => handleViewFiles(folder.id)}
+                                                    className="h-8 bg-emerald-600/10 border-emerald-600/20 text-emerald-500 hover:bg-emerald-600/20 hover:text-emerald-400">
+                                                    <Eye className="h-4 w-4 mr-1" /> View Files
                                                 </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleEditClick(folder)}
-                                                    className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-700"
-                                                >
+                                                <Button variant="ghost" size="icon" onClick={() => handleEditClick(folder)}
+                                                    className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-700">
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                                                        >
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-400 hover:bg-red-500/10">
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </AlertDialogTrigger>
@@ -766,18 +684,15 @@ const Folders: React.FC = () => {
                                                             <AlertDialogDescription className="text-slate-400">
                                                                 {(() => {
                                                                     const stats = getFolderStats(folder.id);
-                                                                    const hasContents = stats.files > 0;
-
-                                                                    if (hasContents) {
+                                                                    if (stats.files > 0) {
                                                                         return (
                                                                             <div className="text-red-400 font-medium border border-red-400/20 bg-red-400/10 p-3 rounded-md">
                                                                                 Cannot delete this folder.<br />
                                                                                 It contains:<br />
                                                                                 <ul className="list-disc list-inside mt-1 ml-2 text-sm">
-                                                                                    {stats.files > 0 && <li><strong>{stats.files}</strong> File{stats.files !== 1 ? 's' : ''}</li>}
+                                                                                    <li><strong>{stats.files}</strong> File{stats.files !== 1 ? 's' : ''}</li>
                                                                                 </ul>
-                                                                                <br />
-                                                                                Please delete all contents first.
+                                                                                <br />Please delete all contents first.
                                                                             </div>
                                                                         );
                                                                     }
@@ -789,16 +704,10 @@ const Folders: React.FC = () => {
                                                             <AlertDialogCancel className="bg-transparent border-slate-700 text-white hover:bg-slate-800">Cancel</AlertDialogCancel>
                                                             <AlertDialogAction
                                                                 onClick={() => handleDelete(folder.id)}
-                                                                disabled={(() => {
-                                                                    const stats = getFolderStats(folder.id);
-                                                                    return stats.files > 0;
-                                                                })()}
-                                                                className={(() => {
-                                                                    const stats = getFolderStats(folder.id);
-                                                                    return (stats.files > 0)
-                                                                        ? "bg-slate-700 text-slate-400 cursor-not-allowed hover:bg-slate-700"
-                                                                        : "bg-red-600 hover:bg-red-700 text-white";
-                                                                })()}
+                                                                disabled={getFolderStats(folder.id).files > 0}
+                                                                className={getFolderStats(folder.id).files > 0
+                                                                    ? "bg-slate-700 text-slate-400 cursor-not-allowed hover:bg-slate-700"
+                                                                    : "bg-red-600 hover:bg-red-700 text-white"}
                                                             >
                                                                 Delete
                                                             </AlertDialogAction>
@@ -815,6 +724,7 @@ const Folders: React.FC = () => {
                 </CardContent>
             </Card>
 
+            {/* Relocate Dialog */}
             <Dialog open={isRelocateDialogOpen} onOpenChange={setIsRelocateDialogOpen}>
                 <DialogContent className="bg-[#0f172a] border-slate-800 text-white">
                     <DialogHeader>
@@ -825,107 +735,65 @@ const Folders: React.FC = () => {
                     </DialogHeader>
                     <div className="py-4">
                         <Label htmlFor="stackNumber" className="text-slate-300">New Stack Number (Value)</Label>
-                        <Input
-                            id="stackNumber"
-                            type="number"
-                            value={newStackNumber}
+                        <Input id="stackNumber" type="number" value={newStackNumber}
                             onChange={(e) => setNewStackNumber(parseInt(e.target.value) || 0)}
-                            className="bg-[#1e293b] border-slate-700 text-white mt-1.5"
-                            placeholder="Enter number..."
-                        />
+                            className="bg-[#1e293b] border-slate-700 text-white mt-1.5" placeholder="Enter number..." />
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsRelocateDialogOpen(false)} className="border-slate-700 text-white hover:bg-slate-800">Cancel</Button>
-                        <Button onClick={handleRelocateConfirm} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                            Update Position
-                        </Button>
+                        <Button onClick={handleRelocateConfirm} className="bg-emerald-600 hover:bg-emerald-700 text-white">Update Position</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
+            {/* Edit Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="bg-[#0f172a] border-slate-800 text-white">
                     <DialogHeader>
                         <DialogTitle>Edit Folder</DialogTitle>
-                        <DialogDescription className="text-slate-400">
-                            Update folder details.
-                        </DialogDescription>
+                        <DialogDescription className="text-slate-400">Update folder details.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label className="text-right text-slate-300">Location</Label>
                             <div className="col-span-3 flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setParentType('shelf')}
-                                    className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'shelf' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                >
-                                    Drawer {'>'} Cabinet
+                                <button type="button" onClick={() => setParentType('shelf')}
+                                    className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'shelf' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
+                                    Drawer &gt; Cabinet
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setParentType('box')}
-                                    className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'box' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
-                                >
+                                <button type="button" onClick={() => setParentType('box')}
+                                    className={`px-3 py-1 rounded text-sm transition-all ${parentType === 'box' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
                                     Inside Box
                                 </button>
                             </div>
                         </div>
-
                         {parentType === 'shelf' && (
                             <>
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label className="text-right text-slate-300">Drawer</Label>
-                                    <select
-                                        value={selectedTier1Id}
-                                        onChange={(e) => {
-                                            setSelectedTier1Id(e.target.value);
-                                            setSelectedTier2Id('');
-                                            setSelectedBoxId('');
-                                        }}
-                                        className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2"
-                                    >
+                                    <select value={selectedTier1Id} onChange={(e) => { setSelectedTier1Id(e.target.value); setSelectedTier2Id(''); setSelectedBoxId(''); }}
+                                        className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2">
                                         <option value="">Select Drawer</option>
-                                        {cabinets.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
-                                        ))}
+                                        {cabinets.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
                                     </select>
                                 </div>
-
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label className="text-right text-slate-300">Parent Cabinet</Label>
-                                    <select
-                                        value={selectedTier2Id}
-                                        onChange={(e) => {
-                                            setSelectedTier2Id(e.target.value);
-                                            setSelectedBoxId('');
-                                        }}
-                                        className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2"
-                                        disabled={!selectedTier1Id}
-                                    >
+                                    <select value={selectedTier2Id} onChange={(e) => { setSelectedTier2Id(e.target.value); setSelectedBoxId(''); }}
+                                        className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2" disabled={!selectedTier1Id}>
                                         <option value="">Select Cabinet</option>
-                                        {shelves
-                                            .filter(s => s.cabinetId === selectedTier1Id)
-                                            .map(s => (
-                                                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                                            ))}
+                                        {shelves.filter(s => s.cabinetId === selectedTier1Id).map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                                     </select>
                                 </div>
                             </>
                         )}
-
                         {parentType === 'box' && (
                             <div className="grid grid-cols-4 items-center gap-4 animate-in fade-in">
                                 <Label className="text-right text-slate-300">Parent Box</Label>
-                                <select
-                                    value={selectedBoxId}
-                                    onChange={(e) => setSelectedBoxId(e.target.value)}
-                                    className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2"
-                                >
+                                <select value={selectedBoxId} onChange={(e) => setSelectedBoxId(e.target.value)}
+                                    className="col-span-3 bg-[#1e293b] border-slate-700 text-white rounded-md p-2">
                                     <option value="">Select Box</option>
-                                    {boxes.map(b => (
-                                        <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                                    ))}
+                                    {boxes.map(b => <option key={b.id} value={b.id}>{b.name} ({b.code})</option>)}
                                 </select>
                             </div>
                         )}
@@ -940,37 +808,20 @@ const Folders: React.FC = () => {
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="edit-color" className="text-right text-slate-300">Color</Label>
                             <div className="col-span-3 space-y-3">
-                                {/* Preset Colors */}
                                 <div className="flex gap-2 flex-wrap">
                                     {DEFAULT_COLORS.map((c) => (
-                                        <button
-                                            key={c}
-                                            type="button"
-                                            onClick={() => setColor(c)}
+                                        <button key={c} type="button" onClick={() => setColor(c)}
                                             className={`w-8 h-8 rounded-full border-2 transition-all ${color === c ? 'border-white scale-110' : 'border-transparent hover:scale-105'}`}
-                                            style={{ backgroundColor: c }}
-                                            title={c}
-                                        />
+                                            style={{ backgroundColor: c }} title={c} />
                                     ))}
                                 </div>
-                                {/* Custom Color Picker */}
                                 <div className="flex items-center gap-2">
                                     <Label htmlFor="edit-custom-color" className="text-slate-400 text-sm">Custom:</Label>
                                     <div className="flex items-center gap-2 flex-1">
-                                        <input
-                                            id="edit-custom-color"
-                                            type="color"
-                                            value={color}
-                                            onChange={(e) => setColor(e.target.value)}
-                                            className="h-10 w-16 rounded border-2 border-slate-700 bg-[#1e293b] cursor-pointer"
-                                        />
-                                        <Input
-                                            type="text"
-                                            value={color}
-                                            onChange={(e) => setColor(e.target.value)}
-                                            placeholder="#FF6B6B"
-                                            className="flex-1 bg-[#1e293b] border-slate-700 text-white font-mono text-sm"
-                                        />
+                                        <input id="edit-custom-color" type="color" value={color} onChange={(e) => setColor(e.target.value)}
+                                            className="h-10 w-16 rounded border-2 border-slate-700 bg-[#1e293b] cursor-pointer" />
+                                        <Input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#FF6B6B"
+                                            className="flex-1 bg-[#1e293b] border-slate-700 text-white font-mono text-sm" />
                                     </div>
                                 </div>
                             </div>
