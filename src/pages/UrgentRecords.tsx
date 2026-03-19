@@ -51,7 +51,7 @@ export default function UrgentRecords() {
             );
         }
 
-        const urgencyWeight: Record<string, number> = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+        const urgencyWeight: Record<string, number> = { 'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1, 'Done': 0 };
         result.sort((a, b) => {
             const wA = urgencyWeight[a.urgencyLevel || 'Low'] || 0;
             const wB = urgencyWeight[b.urgencyLevel || 'Low'] || 0;
@@ -69,11 +69,13 @@ export default function UrgentRecords() {
             case 'Medium': return <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30 font-semibold">🟡 Medium</Badge>;
             case 'Low': return <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30 font-semibold">🔵 Low</Badge>;
             case 'None': return <Badge className="bg-gray-500/15 text-gray-400 border-gray-500/30 font-semibold">⚫ None</Badge>;
+            case 'Done': return <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-semibold">✅ Done</Badge>;
             default: return <Badge className="bg-slate-700/60 text-slate-500 border-slate-700/60">—</Badge>;
         }
     };
 
-    const getDaysLeft = (deadline?: string) => {
+    const getDaysLeft = (deadline?: string, urgencyLevel?: string) => {
+        if (urgencyLevel === 'Done') return { label: '✅ Completed', color: 'text-emerald-400 font-semibold' };
         if (!deadline) return null;
         try {
             const days = differenceInCalendarDays(new Date(deadline), new Date());
@@ -172,7 +174,7 @@ export default function UrgentRecords() {
                 </div>
                 {/* Quick filter badges */}
                 <div className="flex flex-wrap gap-2">
-                    {(['Critical', 'High', 'Medium', 'Low'] as UrgencyLevel[]).map(lvl => {
+                    {(['Critical', 'High', 'Medium', 'Low', 'Done'] as UrgencyLevel[]).map(lvl => {
                         const count = procurements.filter(p => p.urgencyLevel === lvl).length;
                         if (count === 0) return null;
                         return (
@@ -185,10 +187,11 @@ export default function UrgentRecords() {
                                     lvl === 'Critical' ? 'bg-red-500/15 text-red-400 border-red-500/30' :
                                         lvl === 'High' ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
                                             lvl === 'Medium' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
-                                                'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                                lvl === 'Done' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' :
+                                                    'bg-blue-500/15 text-blue-400 border-blue-500/30'
                                 )}
                             >
-                                {lvl} ({count})
+                                {lvl === 'Done' ? '✅' : ''} {lvl} ({count})
                             </button>
                         );
                     })}
@@ -236,6 +239,7 @@ export default function UrgentRecords() {
                                     <SelectItem value="Medium">🟡 Medium</SelectItem>
                                     <SelectItem value="Low">🔵 Low</SelectItem>
                                     <SelectItem value="None">⚫ None</SelectItem>
+                                    <SelectItem value="Done">✅ Done</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -266,8 +270,8 @@ export default function UrgentRecords() {
                                     filteredRecords.map((record) => {
                                         const isEditing = editingId === record.id;
                                         const isConfirmingReset = confirmResetId === record.id;
-                                        const daysLeft = getDaysLeft(record.deadline);
-                                        const previewDays = isEditing ? getDaysLeft(editDeadline?.toISOString().slice(0, 10)) : null;
+                                        const daysLeft = getDaysLeft(record.deadline, record.urgencyLevel);
+                                        const previewDays = isEditing ? getDaysLeft(editDeadline?.toISOString().slice(0, 10), editUrgency) : null;
 
                                         // A record is considered "set" if it has any urgency or deadline
                                         const hasUrgencyOrDeadline = !!(record.urgencyLevel || record.deadline);
@@ -296,6 +300,7 @@ export default function UrgentRecords() {
                                                                 <SelectItem value="Medium">🟡 Medium</SelectItem>
                                                                 <SelectItem value="Low">🔵 Low</SelectItem>
                                                                 <SelectItem value="None">⚫ None</SelectItem>
+                                                                <SelectItem value="Done">✅ Done</SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     ) : getUrgencyBadge(record.urgencyLevel)}
