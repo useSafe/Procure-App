@@ -718,14 +718,14 @@ const ProcurementProcessFlow: React.FC = () => {
                                         <ExternalLink className="w-3 h-3" />
                                         Open
                                     </a>
-                                    <button
+                                    {/* <button
                                         onClick={() => setValidateModal(link)}
                                         className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-[10px] font-medium text-indigo-300 hover:bg-indigo-600/30 hover:border-indigo-400/50 transition"
                                         title="Search PR Number & Open"
                                     >
                                         <Search className="w-3 h-3" />
                                         Validate
-                                    </button>
+                                    </button> */}
                                 </div>
                             </div>
                         );
