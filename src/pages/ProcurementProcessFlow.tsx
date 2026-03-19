@@ -16,7 +16,7 @@ const SHEET_LINKS = [
         color: 'from-blue-600/20 to-blue-800/10 border-blue-500/30 hover:border-blue-400/60',
         badge: 'bg-blue-500/15 text-blue-300',
         glow: 'shadow-blue-500/10',
-        url: 'https://docs.google.com/spreadsheets/d/your-pr-logging-sheet-id/edit',
+        url: 'https://docs.google.com/spreadsheets/d/1H5IDE5TKXM2HXcQ-kcKK3BA_JkGiqQVR8yoXo8L9p6E/edit?gid=1039687665#gid=1039687665',
         searchParam: '#gid=0&range=A1',
     },
     {
@@ -26,7 +26,7 @@ const SHEET_LINKS = [
         color: 'from-indigo-600/20 to-indigo-800/10 border-indigo-500/30 hover:border-indigo-400/60',
         badge: 'bg-indigo-500/15 text-indigo-300',
         glow: 'shadow-indigo-500/10',
-        url: 'https://docs.google.com/spreadsheets/d/your-procurement-monitoring-id/edit',
+        url: 'https://docs.google.com/spreadsheets/d/1VYI9G49VEvogsHHD9pyOJ8NLkf-7spU7GSpPTwAMx84/edit?gid=1943246738#gid=1943246738',
         searchParam: '#gid=0',
     },
     {
@@ -36,17 +36,7 @@ const SHEET_LINKS = [
         color: 'from-violet-600/20 to-violet-800/10 border-violet-500/30 hover:border-violet-400/60',
         badge: 'bg-violet-500/15 text-violet-300',
         glow: 'shadow-violet-500/10',
-        url: 'https://docs.google.com/spreadsheets/d/your-pmr-sheet-id/edit',
-        searchParam: '',
-    },
-    {
-        label: 'Reference Guide',
-        desc: 'Access templates, checklists, and reference documents for all procurement stages.',
-        icon: BookOpen,
-        color: 'from-emerald-600/20 to-emerald-800/10 border-emerald-500/30 hover:border-emerald-400/60',
-        badge: 'bg-emerald-500/15 text-emerald-300',
-        glow: 'shadow-emerald-500/10',
-        url: 'https://docs.google.com/spreadsheets/d/your-guide-sheet-id/edit',
+        url: 'https://docs.google.com/spreadsheets/d/1hUMv_yzk1ON4JNij9WV6zH5VB9hW0o0t/edit?gid=519805908#gid=519805908',
         searchParam: '',
     },
 ];
@@ -259,7 +249,7 @@ const PROCESS_STEPS = [
             { main: 'Scan all compiled procurement documents for the BAC Office\'s digital archive copy.', subs: [] },
             {
                 main: 'Prepare the document package to be forwarded to GSD. Include:',
-                subs: ['1 copy of the Abstract of Quotations', '1 copy of the BAC Resolution', '1 draft copy of the Abstract', '1 copy of the Purchase Request'],
+                subs: ['1 copy of the Abstract of Quotations', '1 copy of the BAC Resolution(Only for 50K Above)', '1 draft copy of the Abstract', '1 copy of the Purchase Request'],
             },
             {
                 main: 'Log the outgoing documents in the BAC Outgoing Log Book.',
@@ -627,7 +617,7 @@ const ProcurementProcessFlow: React.FC = () => {
                     <Star className="w-3.5 h-3.5 text-muted-foreground" />
                     <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Quick Access — Google Sheets</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {SHEET_LINKS.map((link) => {
                         const Icon = link.icon;
                         return (

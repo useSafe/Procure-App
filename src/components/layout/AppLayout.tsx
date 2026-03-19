@@ -131,7 +131,6 @@ const navSections = [
     title: 'BAC Tools',
     items: [
       { path: '/process-flow', label: 'Process Flow Guide', icon: BookOpen, allowedRoles: ADMIN_BAC_VIEWER },
-      { path: '/flow-chart', label: 'Flow Chart View', icon: Network, allowedRoles: ADMIN_BAC_VIEWER },
     ]
   }
 ];
