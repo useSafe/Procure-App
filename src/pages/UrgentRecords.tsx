@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Calendar } from '../components/ui/calendar';
-import { AlertCircle, Search, Eye, Filter, CalendarClock, Save, X, Pencil, CalendarIcon } from 'lucide-react';
+import { AlertCircle, Search, Eye, Filter, CalendarClock, Save, X, Pencil, CalendarIcon, RotateCcw } from 'lucide-react';
 import ProcurementDetailsDialog from '../components/procurement/ProcurementDetailsDialog';
 import { Procurement, UrgencyLevel } from '../types/procurement';
 import { format, differenceInCalendarDays } from 'date-fns';
@@ -31,6 +31,9 @@ export default function UrgentRecords() {
     const [editDeadline, setEditDeadline] = useState<Date | undefined>(undefined);
     const [calendarOpen, setCalendarOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    // Reset confirmation state
+    const [confirmResetId, setConfirmResetId] = useState<string | null>(null);
 
     const filteredRecords = useMemo(() => {
         let result = [...procurements];
@@ -97,12 +100,14 @@ export default function UrgentRecords() {
         setEditUrgency(record.urgencyLevel || 'Low');
         setEditDeadline(record.deadline ? new Date(record.deadline) : undefined);
         setCalendarOpen(false);
+        setConfirmResetId(null);
     };
 
     const handleCancelEdit = () => {
         setEditingId(null);
         setEditDeadline(undefined);
         setCalendarOpen(false);
+        setConfirmResetId(null);
     };
 
     const handleSaveEdit = async (record: Procurement) => {
@@ -121,6 +126,29 @@ export default function UrgentRecords() {
             setEditDeadline(undefined);
         } catch (err) {
             toast.error('Failed to update urgency. Please try again.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Resets urgency, deadline, and days left back to default (unset)
+    const handleResetToDefault = async (record: Procurement) => {
+        setSaving(true);
+        try {
+            await updateProcurement(record.id, {
+                urgencyLevel: undefined,
+                deadline: undefined,
+                editedBy: user?.id,
+                editedByName: user?.name,
+                lastEditedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            });
+            toast.success(`Reset to default for ${record.prNumber}`);
+            setEditingId(null);
+            setEditDeadline(undefined);
+            setConfirmResetId(null);
+        } catch (err) {
+            toast.error('Failed to reset record. Please try again.');
         } finally {
             setSaving(false);
         }
@@ -207,6 +235,7 @@ export default function UrgentRecords() {
                                     <SelectItem value="High">🟠 High</SelectItem>
                                     <SelectItem value="Medium">🟡 Medium</SelectItem>
                                     <SelectItem value="Low">🔵 Low</SelectItem>
+                                    <SelectItem value="None">⚫ None</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -236,8 +265,12 @@ export default function UrgentRecords() {
                                 ) : (
                                     filteredRecords.map((record) => {
                                         const isEditing = editingId === record.id;
+                                        const isConfirmingReset = confirmResetId === record.id;
                                         const daysLeft = getDaysLeft(record.deadline);
                                         const previewDays = isEditing ? getDaysLeft(editDeadline?.toISOString().slice(0, 10)) : null;
+
+                                        // A record is considered "set" if it has any urgency or deadline
+                                        const hasUrgencyOrDeadline = !!(record.urgencyLevel || record.deadline);
 
                                         return (
                                             <tr key={record.id} className={cn(
@@ -262,6 +295,7 @@ export default function UrgentRecords() {
                                                                 <SelectItem value="High">🟠 High</SelectItem>
                                                                 <SelectItem value="Medium">🟡 Medium</SelectItem>
                                                                 <SelectItem value="Low">🔵 Low</SelectItem>
+                                                                <SelectItem value="None">⚫ None</SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     ) : getUrgencyBadge(record.urgencyLevel)}
@@ -332,9 +366,46 @@ export default function UrgentRecords() {
 
                                                 {/* Actions */}
                                                 <td className="px-4 py-3 text-right">
-                                                    <div className="flex gap-1.5 justify-end">
+                                                    <div className="flex gap-1.5 justify-end items-center">
                                                         {isEditing ? (
                                                             <>
+                                                                {/* Reset to Default — with inline confirmation */}
+                                                                {isConfirmingReset ? (
+                                                                    <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-700 rounded-md px-2 py-1">
+                                                                        <span className="text-xs text-slate-300 whitespace-nowrap">Reset all?</span>
+                                                                        <Button
+                                                                            variant="ghost" size="sm"
+                                                                            onClick={() => handleResetToDefault(record)}
+                                                                            disabled={saving}
+                                                                            className="h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                                        >
+                                                                            Yes
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="ghost" size="sm"
+                                                                            onClick={() => setConfirmResetId(null)}
+                                                                            className="h-6 px-2 text-xs text-slate-400 hover:text-white hover:bg-slate-700"
+                                                                        >
+                                                                            No
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <Button
+                                                                        variant="ghost" size="sm"
+                                                                        onClick={() => setConfirmResetId(record.id)}
+                                                                        disabled={saving || !hasUrgencyOrDeadline}
+                                                                        title="Reset urgency & deadline to default"
+                                                                        className={cn(
+                                                                            'h-8 w-8 p-0 transition-colors',
+                                                                            hasUrgencyOrDeadline
+                                                                                ? 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'
+                                                                                : 'text-slate-700 cursor-not-allowed'
+                                                                        )}
+                                                                    >
+                                                                        <RotateCcw className="w-3.5 h-3.5" />
+                                                                    </Button>
+                                                                )}
+
                                                                 <Button
                                                                     variant="ghost" size="sm"
                                                                     onClick={() => handleSaveEdit(record)}
