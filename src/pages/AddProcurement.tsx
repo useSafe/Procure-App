@@ -538,7 +538,7 @@ const AddProcurement: React.FC = () => {
         // ── Load-Balancing: Fresh read from Firebase right before submit ──────
         // This prevents the race condition where two concurrent users both see
         // the same cached "next sequence" and submit duplicate PR numbers.
-        let finalSequence = prSequence;
+        const finalSequence = prSequence;
         try {
             const freshProcurements = await getProcurements();
             const prDivisionAbbr = divisions.find(d => d.id === prDivisionId)?.abbreviation || '';
@@ -557,12 +557,8 @@ const AddProcurement: React.FC = () => {
                         if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
                     }
                 });
-                const freshNext = (maxSeq + 1).toString().padStart(3, '0');
-                // If the fresh max is higher than what the user sees, bump up
-                if (parseInt(freshNext) > parseInt(prSequence)) {
-                    finalSequence = freshNext;
-                    toast.info(`⚡ Sequence updated to ${freshNext} to avoid conflict with another user's record.`);
-                }
+                // No auto-override — user's sequence is preserved as-is.
+                // The duplicate PR check below will warn if there's a true conflict.
             } else if (prFormat === 'new') {
                 // FIX: Filter by BOTH year AND month to avoid matching records from
                 // other months in the same year, which caused sequence to jump to
