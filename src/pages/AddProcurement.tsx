@@ -344,11 +344,9 @@ const AddProcurement: React.FC = () => {
     }, [prFormat, prDivisionId, prYear, prMonth]);
 
 
-    // Auto-generate Sequence based on PR format, Division (old only), and Year.
-    // The guard `userEditedSequence.current` prevents this effect from overwriting
-    // a value the user explicitly typed. It is reset when the structural fields
-    // (division / format / year / month) change, so the sequence auto-updates
-    // when those pivot fields change but NOT when Firebase pushes a new record.
+    // Auto-generate Sequence based on PR format, Division (old only), Year, and Month.
+    // FIX: New format now filters by BOTH year AND month (yearMonthStr) to avoid
+    // picking up sequence numbers from other months in the same year.
     useEffect(() => {
         // If the user manually edited the sequence, respect their choice.
         if (userEditedSequence.current) return;
@@ -379,11 +377,13 @@ const AddProcurement: React.FC = () => {
 
                 setPrSequence((maxSeq + 1).toString().padStart(3, '0'));
             } else {
-                // New format: YY-MMM-SEQ — no division needed
-                const yearStr = `${prYear}-`;
+                // New format: YYYY-MMM-SEQ — filter by BOTH year AND month
+                // FIX: was previously `${prYear}-` which matched all months of the year,
+                // causing the sequence to jump to the highest number across all months.
+                const yearMonthStr = `${prYear}-${prMonth}-`;
 
                 const matching = procurements.filter(p =>
-                    p.prNumber.startsWith(yearStr)
+                    p.prNumber.startsWith(yearMonthStr)
                 );
 
                 let maxSeq = 0;
@@ -564,8 +564,11 @@ const AddProcurement: React.FC = () => {
                     toast.info(`⚡ Sequence updated to ${freshNext} to avoid conflict with another user's record.`);
                 }
             } else if (prFormat === 'new') {
-                const yearStr = `${prYear}-`;
-                const matching = freshProcurements.filter(p => p.prNumber.startsWith(yearStr));
+                // FIX: Filter by BOTH year AND month to avoid matching records from
+                // other months in the same year, which caused sequence to jump to
+                // the highest number across the entire year (e.g. 562 from January).
+                const yearMonthStr = `${prYear}-${prMonth}-`;
+                const matching = freshProcurements.filter(p => p.prNumber.startsWith(yearMonthStr));
                 let maxSeq = 0;
                 matching.forEach(p => {
                     const parts = p.prNumber.split('-');
@@ -1229,7 +1232,7 @@ const AddProcurement: React.FC = () => {
                     </div>
                 </div>
 
-                {/* TAB 2: Monitoring Process â€” correctly placed outside Documents */}
+                {/* TAB 2: Monitoring Process — correctly placed outside Documents */}
                 <div className={activeTab !== 'monitoring' ? 'hidden' : ''} id="tab-monitoring">
                     {/* TAB 2: Monitoring Process */}
                     <Card className="border-none bg-[#0f172a] shadow-lg">
@@ -1647,7 +1650,8 @@ const AddProcurement: React.FC = () => {
 export default AddProcurement;
 
 
-// Extracted Components to prevent focus loss\n
+// Extracted Components to prevent focus loss
+
 const MonitoringDateField = ({ label, value, setValue, isDisabled = false, activeColor = 'blue' }: any) => {
     const activeClasses = {
         blue: { border: 'border-blue-500/30', bg: 'bg-blue-900/10', text: 'text-blue-400', checkBg: 'data-[state=checked]:bg-blue-600', checkBorder: 'data-[state=checked]:border-blue-600', ring: 'focus:ring-blue-500' },
